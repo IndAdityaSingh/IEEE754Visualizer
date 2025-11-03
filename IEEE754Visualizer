@@ -1,0 +1,254 @@
+import tkinter as tk
+from tkinter import ttk
+import struct
+import sys
+
+class IEEE754Visualizer:
+    # --- FIX 1: Change _init_ to __init__ ---
+    def __init__(self, root):
+        """
+        Initialize the main application window and its components.
+        """
+        self.root = root
+        self.root.title("IEEE 754 Visualizer (32-bit)")
+        self.root.geometry("650x550")
+        
+        # --- Create a main frame with padding ---
+        self.main_frame = ttk.Frame(self.root, padding=(20, 20))
+        self.main_frame.pack(fill=tk.BOTH, expand=True)
+
+        # --- Variables to hold our results ---
+        self.full_binary_str = tk.StringVar()
+        self.sign_bit_str = tk.StringVar()
+        self.exponent_str = tk.StringVar()
+        self.mantissa_str = tk.StringVar()
+        
+        self.step_by_step_str = tk.StringVar()
+        self.hex_str = tk.StringVar()
+
+        # --- Call helper function to create widgets ---
+        self.create_widgets()
+        
+        # --- Set a default value to show on startup ---
+        self.entry_var.set("12.375")
+        self.perform_conversion()
+
+    def create_widgets(self):
+        """
+        Create and lay out all the GUI widgets.
+        """
+        
+        # --- Input Section ---
+        input_frame = ttk.Frame(self.main_frame)
+        input_frame.pack(pady=10, fill=tk.X)
+        
+        ttk.Label(input_frame, text="Enter Decimal Number:", font=("Inter", 12)).pack(side=tk.LEFT, padx=(0, 10))
+        
+        self.entry_var = tk.StringVar()
+        self.entry_field = ttk.Entry(input_frame, textvariable=self.entry_var, font=("Inter", 12), width=30)
+        self.entry_field.pack(side=tk.LEFT, fill=tk.X, expand=True)
+        
+        self.convert_button = ttk.Button(input_frame, text="Convert", command=self.perform_conversion)
+        self.convert_button.pack(side=tk.LEFT, padx=(10, 0))
+        
+        # Bind the <Return> key to the conversion
+        self.root.bind('<Return>', lambda event=None: self.convert_button.invoke())
+
+        # --- Result Section (Color-Coded) ---
+        ttk.Label(self.main_frame, text="Full 32-bit Binary Representation:", font=("Inter", 12, "bold")).pack(pady=(15, 5), anchor=tk.W)
+        
+        result_frame = tk.Frame(self.main_frame, bg="#f0f0f0", relief="solid", borderwidth=1)
+        result_frame.pack(fill=tk.X, pady=5, ipady=10)
+        
+        # We use 3 separate labels to 'fake' color coding
+        self.sign_label = tk.Label(result_frame, textvariable=self.sign_bit_str, font=("Courier", 16, "bold"), fg="#0000FF", bg="#f0f0f0")
+        self.sign_label.pack(side=tk.LEFT, padx=(10, 0))
+        
+        self.exponent_label = tk.Label(result_frame, textvariable=self.exponent_str, font=("Courier", 16, "bold"), fg="#008000", bg="#f0f0f0")
+        self.exponent_label.pack(side=tk.LEFT, padx=10)
+        
+        self.mantissa_label = tk.Label(result_frame, textvariable=self.mantissa_str, font=("Courier", 16, "bold"), fg="#D00000", bg="#f0f0f0")
+        self.mantissa_label.pack(side=tk.LEFT, padx=10)
+
+        # --- Detailed Breakdown Section ---
+        details_frame = ttk.Frame(self.main_frame, relief="solid", borderwidth=1)
+        details_frame.pack(fill=tk.X, pady=10)
+
+        self.add_detail_row(details_frame, 0, "Sign (1 bit):", self.sign_bit_str, "#0000FF")
+        self.add_detail_row(details_frame, 1, "Exponent (8 bits):", self.exponent_str, "#008000")
+        self.add_detail_row(details_frame, 2, "Mantissa (23 bits):", self.mantissa_str, "#D00000")
+        self.add_detail_row(details_frame, 3, "Hexadecimal:", self.hex_str, "#555555")
+
+        # --- Step-by-Step Explanation Section ---
+        ttk.Label(self.main_frame, text="Conversion Steps:", font=("Inter", 12, "bold")).pack(pady=(15, 5), anchor=tk.W)
+        
+        steps_frame = ttk.Frame(self.main_frame, relief="solid", borderwidth=1)
+        steps_frame.pack(fill=tk.BOTH, expand=True, pady=5)
+        
+        steps_label = ttk.Label(steps_frame, textvariable=self.step_by_step_str, 
+                                font=("Courier", 11), wraplength=600, justify=tk.LEFT,
+                                padding=10, anchor=tk.NW)
+        steps_label.pack(fill=tk.BOTH, expand=True)
+
+    def add_detail_row(self, parent, row, label_text, string_var, color):
+        """Helper to create a row in the details grid."""
+        label = ttk.Label(parent, text=label_text, font=("Inter", 11, "bold"), padding=(10, 5))
+        label.grid(row=row, column=0, sticky=tk.W)
+        
+        value_label = ttk.Label(parent, textvariable=string_var, font=("Courier", 12), foreground=color, padding=(10, 5))
+        value_label.grid(row=row, column=1, sticky=tk.W)
+
+    def perform_conversion(self):
+        """
+        Called when the button is pressed. Gets input and updates all labels.
+        """
+        input_str = self.entry_var.get().strip()
+        
+        if not input_str:
+            self.clear_all()
+            self.step_by_step_str.set("Please enter a number.")
+            return
+
+        try:
+            # --- The "Python" way using struct ---
+            # This is how Python actually stores the float in memory.
+            # 'f' = 32-bit float, 'I' = 32-bit unsigned integer
+            num = float(input_str)
+            packed = struct.pack('!f', num)
+            int_val = struct.unpack('!I', packed)[0]
+            
+            # Convert the integer to a 32-bit binary string
+            full_bin = bin(int_val)[2:].zfill(32)
+            
+            # Convert the integer to a 8-char hex string
+            hex_val = f"0x{int_val:08X}"
+
+            # --- Extract the parts from the 32-bit string ---
+            sign = full_bin[0]
+            exponent_bin = full_bin[1:9]
+            mantissa_bin = full_bin[9:]
+            
+            # --- Update the GUI variables ---
+            self.sign_bit_str.set(sign)
+            self.exponent_str.set(exponent_bin)
+            self.mantissa_str.set(mantissa_bin)
+            self.hex_str.set(hex_val)
+
+            # --- Generate the step-by-step explanation ---
+            self.generate_steps(num, sign, exponent_bin, mantissa_bin)
+
+        except ValueError:
+            self.clear_all()
+            self.step_by_step_str.set(f"Error: '{input_str}' is not a valid number.")
+        except OverflowError:
+            self.clear_all()
+            self.step_by_step_str.set(f"Error: '{input_str}' is too large to represent.")
+
+    def generate_steps(self, num, sign, exponent_bin, mantissa_bin):
+        """
+        Generates a human-readable step-by-step explanation
+        of the conversion.
+        """
+        if num == 0.0:
+            self.step_by_step_str.set("Special Case: Zero\n- Sign, Exponent, and Mantissa are all zeroes.")
+            return
+
+        steps = []
+        try:
+            # Step 1: Sign
+            steps.append("1. Sign Bit:")
+            steps.append(f"   Number is {num}. \n   It is {'positive' if num >= 0 else 'negative'}, so Sign = {sign}.")
+
+            # Step 2: Convert to Binary
+            abs_num = abs(num)
+            int_part = int(abs_num)
+            frac_part = abs_num - int_part
+            
+            int_bin = bin(int_part)[2:]
+            
+            # Convert fractional part
+            frac_bin = ""
+            temp_frac = frac_part
+            for _ in range(52): # Get extra precision for accuracy
+                temp_frac *= 2
+                if temp_frac >= 1:
+                    frac_bin += "1"
+                    temp_frac -= 1
+                else:
+                    frac_bin += "0"
+                if temp_frac == 0:
+                    break
+            
+            steps.append("\n2. Binary Conversion:")
+            steps.append(f"   Integer part {int_part} = {int_bin}")
+            steps.append(f"   Fractional part {frac_part} ≈ 0.{frac_bin[:20]}...")
+            steps.append(f"   Full binary: {int_bin}.{frac_bin[:20]}...")
+
+            # Step 3: Normalization
+            steps.append("\n3. Normalization (Scientific Notation):")
+            
+            # Calculate power
+            if int_part > 0:
+                dot_pos = len(int_bin)
+                power = dot_pos - 1
+                raw_mantissa = int_bin[1:] + frac_bin
+            else:
+                first_one = frac_bin.find('1')
+                if first_one == -1: # Number is 0
+                    power = 0
+                    raw_mantissa = "0"
+                else:
+                    power = -(first_one + 1)
+                    raw_mantissa = frac_bin[first_one+1:]
+
+            steps.append(f"   Move decimal to get 1.xxxx...")
+            steps.append(f"   Result: 1.{raw_mantissa[:20]}... x 2^{power}")
+            
+            # Step 4: Exponent
+            bias = 127
+            biased_exp = power + bias
+            steps.append("\n4. Exponent (8 bits):")
+            steps.append(f"   Power = {power}")
+            steps.append(f"   Biased Exponent = Power + Bias = {power} + {bias} = {biased_exp}")
+            steps.append(f"   Binary (8 bits) = {exponent_bin}")
+
+            # Step 5: Mantissa
+            steps.append("\n5. Mantissa (23 bits):")
+            steps.append(f"   The 'fraction' part after the 1.")
+            steps.append(f"   From: 1.[{raw_mantissa[:23]}...]")
+            steps.append(f"   We take the first 23 bits.")
+            steps.append(f"   Binary (23 bits) = {mantissa_bin}")
+
+            self.step_by_step_str.set("\n".join(steps))
+
+        except Exception as e:
+            # Fallback if step-by-step fails
+            self.step_by_step_str.set(f"Displaying final value.\n(Step-by-step failed: {e})")
+
+    def clear_all(self):
+        """Clears all result fields."""
+        self.sign_bit_str.set("")
+        self.exponent_str.set("")
+        self.mantissa_str.set("")
+        self.hex_str.set("")
+
+
+# --- FIX 2: Change _name_ and _main_ to __name__ and __main__ ---
+if __name__ == "__main__":
+    # Set high-DPI awareness on Windows
+    if sys.platform == "win32":
+        try:
+            from ctypes import windll
+            windll.shcore.SetProcessDpiAwareness(1)
+        except Exception:
+            pass # Fails on non-Windows or older Windows
+
+    root = tk.Tk()
+    
+    # Apply a modern theme
+    style = ttk.Style(root)
+    if "clam" in style.theme_names():
+        style.theme_use("clam")
+    
+    app = IEEE754Visualizer(root)
+    root.mainloop()
